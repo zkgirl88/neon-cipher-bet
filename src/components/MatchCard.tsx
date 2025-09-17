@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Shield, Clock, Users, Trophy, Lock } from "lucide-react";
+import { Zap, Clock, Users, Trophy, Eye } from "lucide-react";
+import { useBetting } from "@/hooks/useBetting";
+import { useToast } from "@/hooks/use-toast";
 
 interface Team {
   name: string;
@@ -30,18 +32,59 @@ interface MatchCardProps {
 const MatchCard = ({ match, onBet, isWalletConnected }: MatchCardProps) => {
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [betAmount, setBetAmount] = useState("");
-  const [isPlacingBet, setIsPlacingBet] = useState(false);
+  const [encryptionStatus, setEncryptionStatus] = useState<'idle' | 'encrypting' | 'encrypted'>('idle');
+  
+  const { placeBet, isPlacingBet, initializeFHE } = useBetting();
+  const { toast } = useToast();
+
+  // Initialize FHE when component mounts
+  useEffect(() => {
+    if (isWalletConnected) {
+      initializeFHE();
+    }
+  }, [isWalletConnected, initializeFHE]);
 
   const handlePlaceBet = async () => {
     if (!selectedTeam || !betAmount || !isWalletConnected) return;
     
-    setIsPlacingBet(true);
-    setTimeout(() => {
-      onBet(match.id, selectedTeam, parseFloat(betAmount));
-      setSelectedTeam(null);
-      setBetAmount("");
-      setIsPlacingBet(false);
-    }, 2000);
+    setEncryptionStatus('encrypting');
+    
+    try {
+      // Determine team choice (1 for teamA, 2 for teamB)
+      const teamChoice = selectedTeam === match.teamA.name ? 1 : 2;
+      const amount = parseFloat(betAmount);
+      
+      // Place encrypted bet on blockchain
+      const betResult = await placeBet(match.id, teamChoice, amount);
+      
+      if (betResult) {
+        setEncryptionStatus('encrypted');
+        
+        // Call the original onBet callback for UI updates
+        onBet(match.id, selectedTeam, amount);
+        
+        // Reset form
+        setSelectedTeam(null);
+        setBetAmount("");
+        
+        // Show success message
+        toast({
+          title: "Encrypted Bet Placed",
+          description: `Your bet of ${amount} ETH has been encrypted and placed on-chain`,
+        });
+        
+        // Reset encryption status after a delay
+        setTimeout(() => setEncryptionStatus('idle'), 3000);
+      }
+    } catch (error) {
+      console.error('Error placing bet:', error);
+      setEncryptionStatus('idle');
+      toast({
+        title: "Bet Failed",
+        description: "Failed to place encrypted bet",
+        variant: "destructive"
+      });
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -98,8 +141,20 @@ const MatchCard = ({ match, onBet, isWalletConnected }: MatchCardProps) => {
         {isWalletConnected && selectedTeam && (
           <div className="space-y-3 p-4 bg-muted/20 rounded-lg border border-primary/20">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Lock className="w-4 h-4 text-cyber-green" />
-              <span>Encrypted bet on {selectedTeam}</span>
+              <Eye className="w-4 h-4 text-cyber-green" />
+              <span>FHE Encrypted bet on {selectedTeam}</span>
+              {encryptionStatus === 'encrypting' && (
+                <div className="flex items-center gap-1 text-cyber-blue">
+                  <div className="w-2 h-2 bg-cyber-blue rounded-full animate-pulse" />
+                  <span className="text-xs">Encrypting...</span>
+                </div>
+              )}
+              {encryptionStatus === 'encrypted' && (
+                <div className="flex items-center gap-1 text-cyber-green">
+                  <Zap className="w-3 h-3" />
+                  <span className="text-xs">Encrypted & On-Chain</span>
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               <Input
@@ -108,16 +163,23 @@ const MatchCard = ({ match, onBet, isWalletConnected }: MatchCardProps) => {
                 value={betAmount}
                 onChange={(e) => setBetAmount(e.target.value)}
                 className="flex-1"
+                disabled={isPlacingBet || encryptionStatus === 'encrypting'}
               />
               <Button
                 onClick={handlePlaceBet}
-                disabled={!betAmount || isPlacingBet}
+                disabled={!betAmount || isPlacingBet || encryptionStatus === 'encrypting'}
                 variant="cyber"
-                className="min-w-[100px]"
+                className="min-w-[120px]"
               >
-                {isPlacingBet ? "Encrypting..." : "Bet"}
+                {isPlacingBet ? "Processing..." : encryptionStatus === 'encrypting' ? "Encrypting..." : "Place Bet"}
               </Button>
             </div>
+            {encryptionStatus === 'encrypted' && (
+              <div className="text-xs text-cyber-green bg-cyber-green/10 p-2 rounded border border-cyber-green/20">
+                ✅ Your bet has been encrypted with FHE and submitted to the blockchain. 
+                The bet details remain private until match resolution.
+              </div>
+            )}
           </div>
         )}
 
@@ -133,8 +195,8 @@ const MatchCard = ({ match, onBet, isWalletConnected }: MatchCardProps) => {
               <span>1.2k bets</span>
             </div>
             <div className="flex items-center gap-1">
-              <Shield className="w-3 h-3 text-cyber-green" />
-              <span>Encrypted</span>
+              <Eye className="w-3 h-3 text-cyber-green" />
+              <span>FHE Encrypted</span>
             </div>
           </div>
         </div>

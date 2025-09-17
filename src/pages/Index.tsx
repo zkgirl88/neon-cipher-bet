@@ -2,22 +2,30 @@ import { useState } from "react";
 import Header from "@/components/Header";
 import WalletConnection from "@/components/WalletConnection";
 import MatchCard from "@/components/MatchCard";
+import BettingHistory from "@/components/BettingHistory";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { useBetting } from "@/hooks/useBetting";
 import esportsStage from "@/assets/esports-stage.jpg";
 
 const Index = () => {
   const [isWalletConnected, setIsWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string>("");
   const { toast } = useToast();
+  const { initializeFHE } = useBetting();
 
   const handleWalletConnect = (address: string) => {
     setIsWalletConnected(true);
     setWalletAddress(address);
+    
+    // Initialize FHE encryption when wallet connects
+    initializeFHE();
+    
     toast({
       title: "Wallet Connected",
-      description: "Your wallet has been securely connected and encrypted.",
+      description: "Your wallet has been securely connected with FHE encryption ready.",
     });
   };
 
@@ -100,23 +108,36 @@ const Index = () => {
             </Card>
           </div>
 
-          {/* Matches */}
-          <div className="space-y-6 max-w-4xl mx-auto">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-foreground mb-2">Live & Upcoming Matches</h2>
-              <p className="text-muted-foreground">Place encrypted bets on your favorite eSports teams</p>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {matches.map((match) => (
-                <MatchCard
-                  key={match.id}
-                  match={match}
-                  onBet={handleBet}
-                  isWalletConnected={isWalletConnected}
-                />
-              ))}
-            </div>
+          {/* Main Content with Tabs */}
+          <div className="max-w-6xl mx-auto">
+            <Tabs defaultValue="matches" className="space-y-6">
+              <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto">
+                <TabsTrigger value="matches">Live Matches</TabsTrigger>
+                <TabsTrigger value="history">My Bets</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="matches" className="space-y-6">
+                <div className="text-center">
+                  <h2 className="text-2xl font-bold text-foreground mb-2">Live & Upcoming Matches</h2>
+                  <p className="text-muted-foreground">Place FHE encrypted bets on your favorite eSports teams</p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {matches.map((match) => (
+                    <MatchCard
+                      key={match.id}
+                      match={match}
+                      onBet={handleBet}
+                      isWalletConnected={isWalletConnected}
+                    />
+                  ))}
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="history">
+                <BettingHistory />
+              </TabsContent>
+            </Tabs>
           </div>
 
           {/* How it works */}
@@ -127,19 +148,19 @@ const Index = () => {
                 {
                   step: "1",
                   title: "Connect Wallet",
-                  description: "Securely connect your crypto wallet to start betting",
+                  description: "Securely connect your crypto wallet with FHE encryption ready",
                   color: "cyber-pink"
                 },
                 {
                   step: "2", 
-                  title: "Place Encrypted Bets",
-                  description: "Your bets are encrypted and kept private until match results",
+                  title: "FHE Encrypted Bets",
+                  description: "Your bets are encrypted with FHE and kept private until match results",
                   color: "cyber-blue"
                 },
                 {
                   step: "3",
-                  title: "Automatic Payouts",
-                  description: "Results revealed after official adjudication, automatic payouts",
+                  title: "Blockchain Payouts",
+                  description: "Results revealed after official adjudication, automatic on-chain payouts",
                   color: "cyber-green"
                 }
               ].map((item) => (
